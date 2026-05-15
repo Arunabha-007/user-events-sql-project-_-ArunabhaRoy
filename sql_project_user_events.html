@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SQL Project — User Events Analytics</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f14;
+    --surface: #13161e;
+    --card: #191d28;
+    --border: #252a38;
+    --accent: #00e5a0;
+    --accent2: #7b6cff;
+    --accent3: #ff6b6b;
+    --text: #e8eaf0;
+    --muted: #7a8099;
+    --easy: #00e5a0;
+    --medium: #f0c040;
+    --hard: #ff6b6b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+  header {
+    background: linear-gradient(135deg, #0d0f14 0%, #131828 50%, #0d0f14 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 48px 40px 36px;
+    position: relative;
+    overflow: hidden;
+  }
+  header::before {
+    content: '';
+    position: absolute; top: -60px; right: -60px;
+    width: 300px; height: 300px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,229,160,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  header::after {
+    content: '';
+    position: absolute; bottom: -40px; left: 200px;
+    width: 200px; height: 200px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(123,108,255,0.07) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .badge {
+    display: inline-block;
+    background: rgba(0,229,160,0.12);
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid rgba(0,229,160,0.25);
+    margin-bottom: 16px;
+  }
+  h1 {
+    font-size: clamp(28px, 4vw, 48px);
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1.1;
+    margin-bottom: 12px;
+  }
+  h1 span { color: var(--accent); }
+  .subtitle {
+    color: var(--muted);
+    font-size: 15px;
+    max-width: 560px;
+  }
+  .stats-bar {
+    display: flex; gap: 32px; margin-top: 28px; flex-wrap: wrap;
+  }
+  .stat { display: flex; flex-direction: column; }
+  .stat-val { font-size: 24px; font-weight: 800; color: var(--accent); }
+  .stat-label { font-size: 11px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+
+  .schema-section {
+    padding: 32px 40px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .section-title {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--accent2);
+    margin-bottom: 16px;
+  }
+  .schema-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+  }
+  .col-chip {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+  }
+  .col-name { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--accent); font-weight: 500; }
+  .col-type { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .col-note { font-size: 11px; color: var(--text); opacity: 0.7; margin-top: 6px; }
+
+  .main { padding: 40px; max-width: 1100px; }
+  .level-group { margin-bottom: 48px; }
+  .level-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 24px;
+  }
+  .level-dot { width: 12px; height: 12px; border-radius: 50%; }
+  .level-name { font-size: 20px; font-weight: 700; }
+  .level-count { font-size: 12px; color: var(--muted); background: var(--surface); padding: 3px 10px; border-radius: 20px; }
+
+  .questions { display: flex; flex-direction: column; gap: 20px; }
+  .qcard {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .qcard:hover { border-color: rgba(0,229,160,0.3); }
+  .qcard-header {
+    display: flex; align-items: flex-start; gap: 16px;
+    padding: 20px 24px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .q-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    background: var(--surface);
+    padding: 3px 8px;
+    border-radius: 6px;
+    white-space: nowrap;
+    margin-top: 2px;
+  }
+  .q-text { font-size: 15px; font-weight: 600; flex: 1; line-height: 1.5; }
+  .q-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .tag {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+  .tag-sql { background: rgba(123,108,255,0.15); color: var(--accent2); }
+  .tag-analytics { background: rgba(0,229,160,0.1); color: var(--accent); }
+  .tag-funnel { background: rgba(240,192,64,0.15); color: #f0c040; }
+  .toggle-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+    margin-top: 2px;
+  }
+  .toggle-btn:hover { background: rgba(0,229,160,0.1); color: var(--accent); border-color: rgba(0,229,160,0.3); }
+  .solution {
+    display: none;
+    border-top: 1px solid var(--border);
+    padding: 20px 24px;
+    background: rgba(0,0,0,0.2);
+  }
+  .solution.visible { display: block; }
+  .sol-label {
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+  pre {
+    background: #0a0c10;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  .kw { color: #7b6cff; font-weight: 500; }
+  .fn { color: #00e5a0; }
+  .str { color: #ff9d5c; }
+  .cmt { color: #4a5068; font-style: italic; }
+  .num { color: #f0c040; }
+  .explanation {
+    margin-top: 14px;
+    background: rgba(123,108,255,0.07);
+    border-left: 3px solid var(--accent2);
+    padding: 12px 16px;
+    border-radius: 0 8px 8px 0;
+    font-size: 13px;
+    color: #b0b8d0;
+    line-height: 1.6;
+  }
+  .setup-section {
+    padding: 32px 40px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+
+  @media (max-width: 600px) {
+    header, .schema-section, .main, .setup-section { padding: 24px 20px; }
+    .stats-bar { gap: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="badge">SQL Project</div>
+  <h1>User Events <span>Analytics</span></h1>
+  <p class="subtitle">Practice SQL with real e-commerce funnel data — from page views to purchases. Build queries used by actual data analysts.</p>
+  <div class="stats-bar">
+    <div class="stat"><span class="stat-val">9,381</span><span class="stat-label">Rows</span></div>
+    <div class="stat"><span class="stat-val">7</span><span class="stat-label">Columns</span></div>
+    <div class="stat"><span class="stat-val">5,000</span><span class="stat-label">Users</span></div>
+    <div class="stat"><span class="stat-val">15</span><span class="stat-label">Questions</span></div>
+  </div>
+</header>
+
+<!-- Schema -->
+<div class="schema-section">
+  <div class="section-title">📋 Table Schema — user_events</div>
+  <div class="schema-grid">
+    <div class="col-chip"><div class="col-name">event_id</div><div class="col-type">INT · Primary Key</div><div class="col-note">Unique event identifier</div></div>
+    <div class="col-chip"><div class="col-name">user_id</div><div class="col-type">INT</div><div class="col-note">User performing the event</div></div>
+    <div class="col-chip"><div class="col-name">event_type</div><div class="col-type">VARCHAR</div><div class="col-note">page_view · add_to_cart · checkout_start · payment_info · purchase</div></div>
+    <div class="col-chip"><div class="col-name">event_date</div><div class="col-type">DATETIME</div><div class="col-note">Timestamp of the event</div></div>
+    <div class="col-chip"><div class="col-name">product_id</div><div class="col-type">INT</div><div class="col-note">Product involved (6 products)</div></div>
+    <div class="col-chip"><div class="col-name">amount</div><div class="col-type">FLOAT · Nullable</div><div class="col-note">Only filled for purchases</div></div>
+    <div class="col-chip"><div class="col-name">traffic_source</div><div class="col-type">VARCHAR</div><div class="col-note">social · organic · paid_ads · email</div></div>
+  </div>
+</div>
+
+<!-- Setup SQL -->
+<div class="setup-section">
+  <div class="section-title">⚙️ Setup — Import CSV into SQL Server</div>
+  <pre><span class="cmt">-- Step 1: Create the table</span>
+<span class="kw">CREATE TABLE</span> user_events (
+    event_id        <span class="kw">INT</span>           <span class="kw">PRIMARY KEY</span>,
+    user_id         <span class="kw">INT</span>           <span class="kw">NOT NULL</span>,
+    event_type      <span class="kw">VARCHAR</span>(<span class="num">50</span>)   <span class="kw">NOT NULL</span>,
+    event_date      <span class="kw">DATETIME2</span>     <span class="kw">NOT NULL</span>,
+    product_id      <span class="kw">INT</span>           <span class="kw">NOT NULL</span>,
+    amount          <span class="kw">FLOAT</span>         <span class="kw">NULL</span>,
+    traffic_source  <span class="kw">VARCHAR</span>(<span class="num">30</span>)   <span class="kw">NOT NULL</span>
+);
+
+<span class="cmt">-- Step 2: Import CSV using BULK INSERT</span>
+<span class="kw">BULK INSERT</span> user_events
+<span class="kw">FROM</span> <span class="str">'C:\path\to\user_events.csv'</span>
+<span class="kw">WITH</span> (
+    FIRSTROW = <span class="num">2</span>,
+    FIELDTERMINATOR = <span class="str">','</span>,
+    ROWTERMINATOR = <span class="str">'\n'</span>,
+    TABLOCK
+);</pre>
+</div>
+
+<!-- Questions -->
+<div class="main">
+
+  <!-- EASY -->
+  <div class="level-group">
+    <div class="level-header">
+      <div class="level-dot" style="background:var(--easy)"></div>
+      <div class="level-name" style="color:var(--easy)">Easy</div>
+      <div class="level-count">5 questions</div>
+    </div>
+    <div class="questions">
+
+      <div class="qcard">
+        <div class="qcard-header" onclick="toggle(this)">
+          <span class="q-num">Q1</span>
+          <div>
+            <div class="q-text">How many total events are in the table? Also show the count for each event type.</div>
+            <div class="q-tags"><span class="tag tag-sql">COUNT</span><span class="tag tag-sql">GROUP BY</span></div>
+          </div>
+          <button class="toggle-btn">Show Answer</button>
+        </div>
+        <div class="solution">
+          <div class="sol-label">✦ Solution</div>
+          <pre><span class="cmt">-- Total events</span>
+<span class="kw">SELECT</span> <span class="fn">COUNT</span>(*) <span class="kw">AS</span> total_events
+<span class="kw">FROM</span> user_events;
+
+<span class="cmt">-- Events per type</span>
+<span class="kw">SELECT</span>
+    event_type,
+    <span class="fn">COUNT</span>(*) <span class="kw">AS</span> event_count
+<span class="kw">FROM</span> user_events
+<span class="kw">GROUP BY</span> event_type
+<span class="kw">ORDER BY</span> event_count <span class="kw">DESC</span>;</pre>
+          <div class="explanation">💡 <strong>GROUP BY</strong> partitions rows into groups — one per unique event_type — so COUNT(*) runs independently on each group.</div>
+        </div>
+      </div>
+
+      <div class="qcard">
+        <div class="qcard-header" onclick="toggle(this)">
+          <span class="q-num">Q2</span>
+          <div>
+            <div class="q-text">Find all unique users who made at least one purchase.</div>
+            <div class="q-tags"><span class="tag tag-sql">DISTINCT</span><span class="tag tag-sql">WHERE</span></div>
+          </div>
+          <button class="toggle-btn">Show Answer</button>
+        </div>
+        <div class="solution">
+          <div class="sol-label">✦ Solution</div>
+          <pre><span class="kw">SELECT</span> <span class="kw">DISTINCT</span> user_id
+<span class="kw">FROM</span> user_events
+<span class="kw">WHERE</span> event_type = <span class="str">'purchase'</span>
+<span class="kw">ORDER BY</span> user_id;</pre>
+          <div class="explanation">💡 <strong>DISTINCT</strong> removes duplicate user_ids so each buyer appears once even if they purchased multiple times.</div>
+        </div>
+      </div>
+
+      <div class="qcard">
+        <div class="qcard-header" onclick="toggle(this)">
+          <span class="q-num">Q3</span>
+          <div>
+            <div class="q-text">What is the total revenue, average order value, and number of orders?</div>
+            <div class="q-tags"><span class="tag tag-sql">SUM</span><span class="tag tag-sql">AVG</span><span class="tag tag-analytics">Revenue</span></div>
+          </div>
+          <button class="toggle-btn">Show Answer</button>
+        </div>
+        <div class="solution">
+          <div class="sol-label">✦ Solution</div>
+          <pre><span class="kw">SELECT</span>
+    <span class="fn">COUNT</span>(*)                    <span class="kw">AS</span> total_orders,
+    <span class="fn">SUM</span>(amount)                 <span class="kw">AS</span> total_revenue,
+    <span class="fn">ROUND</span>(<span class="fn">AVG</span>(amount), <span class="num">2</span>)       <span class="kw">AS</span> avg_order_value,
+    <span class="fn">MIN</span>(amount)                 <span class="kw">AS</span> min_order,
+    <span class="fn">MAX</span>(amount)                 <span class="kw">AS</span> max_order
+<span class="kw">FROM</span> user_events
+<span class="kw">WHERE</span> event_type = <span class="str">'purchase'</span>;</pre>
+          <div class="explanation">💡 Filter to purchases only before aggregating — otherwise AVG(amount) is skewed by the many NULLs from non-purchase events.</div>
+        </div>
+      </div>
+
+      <div class="qcard">
+        <div class="qcard-header" onclick="toggle(this)">
+          <span class="q-num">Q4</span>
+          <div>
+            <div class="q-text">How many events came from each traffic source?</div>
+            <div class="q-tags"><span class="tag tag-sql">GROUP BY</span><span class="tag tag-analytics">Traffic</span></div>
+          </div>
+          <button class="toggle-btn">Show Answer</button>
+        </div>
+        <div class="solution">
+          <div class="sol-label">✦ Solution</div>
+          <pre><span class="kw">SELECT</span>
+    traffic_source,
+    <span class="fn">COUNT</span>(*) <span class="kw">AS</span> total_events,
+    <span class="fn">COUNT</span>(<span class="kw">DISTINCT</span> user_id) <span class="kw">AS</span> unique_users
+<span class="kw">FROM</span> user_events
+<span class="kw">GROUP BY</span> traffic_source
+<span class="kw">ORDER BY</span> total_events <span class="kw">DESC</span>;</pre>
+          <div class="explanation">💡 COUNT(DISTINCT user_id) tells you how many unique users came from each channel — different from total events because one user can generate many events.</div>
+        </div>
+      </div>
+
+      <div class="qcard">
+        <div class="qcard-header" onclick="toggle(this)">
+          <span class="q-num">Q5</span>
+          <div>
+            <div class="q-text">List the top 5 products by number of page views.</div>
+            <div class="q-tags"><span class="tag tag-sql">TOP / LIMIT</span><span class="tag tag-analytics">Products</span></div>
+          </div>
+          <button class="toggle-btn">Show Answer</button>
+        </div>
+        <div class="solution">
+          <div class="sol-label">✦ Solution</div>
+          <pre><span class="kw">SELECT TOP</span> <span class="num">5</span>
+    product_id,
+    <span class="fn">COUNT</span>(*) <span class="kw">AS</span> page_views
+<span class="kw">FROM</span> user_events
+<span class="kw">WHERE</span> event_type = <span class="str">'page_view'</span>
+<span class="kw">GROUP BY</span> product_id
+<span class="kw">ORDER BY</span> page_views <span class="kw">DESC</span>;</pre>
+          <div class="explanation">💡 In SQL Server use <strong>TOP N</strong>; in MySQL/PostgreSQL use <strong>LIMIT N</strong>. Always pair with ORDER BY, otherwise TOP returns arbitrary rows.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MEDIUM -->
+  <div class="level-group">
+    <div class="level-header">
+      <div class="level-dot" style="background:var(--medium)"></div>
+      <div class="level-name" style="color:var(--medium)">Medium</div>
+      <div class="level-count">5 questions</div>
+    </div>
+    <div class="questions">
+
+      <div class="qcard">
+        <div class="qcard-header" onclick="toggle(this)">
+          <span class="q-num">Q6</span>
+          <div>
+            <div class="q-text">Build a conversion funnel: show how many unique users reached each stage (page_view → add_to_cart → checkout_start → payment_info → purchase).</div>
+            <div class="q-tags"><span class="tag tag-funnel">Funnel</span><span class="tag tag-sql">CASE WHEN</span></div>
+          </div>
+          <button class="toggle-btn">Show Answer</button>
+        </div>
+        <div class="solution">
+          <div class="sol-label">✦ Solution</div>
+          <pre><span class="kw">SELECT</span>
+    <span class="fn">COUNT</span>(<span class="kw">DISTINCT CASE WHEN</span> event_type = <span class="str">'page_view'</span>       <span class="kw">THEN</span> user_id <span class="kw">END</span>) <span class="kw">AS</span> stage_1_views,
+    <span class="fn">COUNT</span>(<span class="kw">DISTINCT CASE WHEN</span> event_type = <span class="str">'add_to_cart'</span>     <span class="kw">THEN</span> user_id <span class="kw">END</span>) <span class="kw">AS</span> stage_2_cart,
+    <span class="fn">COUNT</span>(<span class="kw">DISTINCT CASE WHEN</span> event_type = <span class="str">'checkout_start'</span>  <span class="kw">THEN</span> user_id <span class="kw">END</span>) <span class="kw">AS</span> stage_3_checkout,
+    <span class="fn">COUNT</span>(<span class="kw">DISTINCT CASE WHEN</span> event_type = <span class="str">'payment_info'</span>    <span class="kw">THEN</span> user_id <span class="kw">END</span>) <span class="kw">AS</span> stage_4_payment,
+    <span class="fn">COUNT</span>(<span class="kw">DISTINCT CASE WHEN</span> event_type = <span class="str">'purchase'</span>        <span class="kw">THEN</span> user_id <span class="kw">END</span>) <span class="kw">AS</span> stage_5_purchase
+<span class="kw">FROM</span> user_events;</pre>
+          <div class="explanation">💡 <strong>CASE WHEN inside COUNT(DISTINCT)</strong> is the classic funnel pattern — it conditionally counts users only when they hit each stage. The drop-off between stages reveals where users abandon.</div>
+        </div>
+      </div>
+
+      <div class="qcard">
+        <div class="qcard-header" onclick="toggle(this)">
+          <span class="q-num">Q7</span>
+          <div>
+            <div class="q-text">Which traffic source generates the most revenue? Show revenue and conversion rate (purchasers / visitors) per source.</div>
+            <div class="q-tags"><span class="tag tag-analytics">Revenue</span><span class="tag tag-sql">HAVING</span><span class="tag tag-analytics">Traffic</span></div>
+          </div>
+          <button class="toggle-btn">Show Answer</button>
+        </div>
+        <div class="solution">
+          <div class="sol-label">✦ Solution</div>
+          <pre><span class="kw">SELECT</span>
+    traffic_source,
+    <span class="fn">COUNT</span>(<span class="kw">DISTINCT</span> user_id)              <span class="kw">AS</span> total_visitors,
+    <span class="fn">COUNT</span>(<span class="kw">DISTINCT CASE WHEN</span> event_type = <span class="str">'purchase'</span>
+          <span class="kw">THEN</span> user_id <span class="kw">END</span>)               <span class="kw">AS</span> buyers,
+    <span class="fn">ROUND</span>(<span class="fn">SUM</span>(<span class="kw">CASE WHEN</span> event_type = <span class="str">'purchase'</span>
+          <span class="kw">THEN</span> amount <span class="kw">ELSE</span> <span class="num">0</span> <span class="kw">END</span>), <span class="num">2</span>)      <span class="kw">AS</span> revenue,
+    <span class="fn">ROUND</span>(
+        <span class="num">100.0</span> * <span class="fn">COUNT</span>(<span class="kw">DISTINCT CASE WHEN</span> event_type = <span class="str">'purchase'</span> <span class="kw">THEN</span> user_id <span class="kw">END</span>)
+        / <span class="fn">COUNT</span>(<span class="kw">DISTINCT</span> user_id), <span class="num">2</span>
+    )                                      <span class="kw">AS</span> conversion_pct
+<span class="kw">FROM</span> user_events
+<span class="kw">GROUP BY</span> traffic_source
+<span class="kw">ORDER BY</span> revenue <span class="kw">DESC</span>;</pre>
+          <div class="explanation">💡 Multiplying by <strong>100.0</strong> (not 100) forces decimal division in SQL Server. Integer / integer = integer (truncated)!</div>
+        </div>
+      </div>
+
+      <div class="qcard">
+        <div class="qcard-header" onclick="toggle(this)">
+          <span class="q-num">Q8</span>
+          <div>
+            <div class="q-text">Find users who added a product to cart but never completed a purchase (abandoned cart users).</div>
+            <div class="q-tags"><span class="tag tag-sql">NOT IN</span><span class="tag tag-sql">Subquery</span><span class="tag tag-analytics">Cart Abandonment</span></div>
+          </div>
+          <button class="toggle-btn">Show Answer</button>
+        </div>
+        <div class="solution">
+          <div class="sol-label">✦ Solution</div>
+          <pre><span class="cmt">-- Method 1: NOT IN with subquery</span>
+<span class="kw">SELECT DISTINCT</span> user_id <span class="kw">AS</span> abandoned_cart_user
+<span class="kw">FROM</span> user_events
+<span class="kw">WHERE</span> event_type = <span class="str">'add_to_cart'</span>
+  <span class="kw">AND</span> user_id <span class="kw">NOT IN</span> (
+      <span class="kw">SELECT DISTINCT</span> user_id
+      <span class="kw">FROM</span> user_events
+      <span class="kw">WHERE</span> event_type = <span class="str">'purchase'</span>
+  );
+
+<span class="cmt">-- Method 2: LEFT JOIN (more performant on large tables)</span>
+<span class="kw">SELECT DISTINCT</span> c.user_id
+<span class="kw">FROM</span> user_events c
+<span class="kw">LEFT JOIN</span> user_events p
+    <span class="kw">ON</span> c.user_id = p.user_id <span class="kw">AND</span> p.event_type = <span class="str">'purchase'</span>
+<span class="kw">WHERE</span> c.event_type = <span class="str">'add_to_cart'</span>
+  <span class="kw">AND</span> p.user_id <span class="kw">IS NULL</span>;</pre>
+          <div class="explanation">💡 The LEFT JOIN approach is faster on large tables than NOT IN because it avoids rescanning the subquery for every row. p.user_id IS NULL means "no matching purchase row was found."</div>
+        </div>
+      </div>
+
+      <div class="qcard">
+        <div class="qcard-header" onclick="toggle(this)">
+          <span class="q-num">Q9</span>
+          <div>
+            <div class="q-text">Show daily revenue and the 7-day rolling average revenue.</div>
+            <div class="q-tags"><span class="tag tag-sql">Window Function</span><span class="tag tag-sql">AVG OVER</span><span class="tag tag-analytics">Time Series</span></div>
+          </div>
+          <button class="toggle-btn">Show Answer</button>
+        </div>
+        <div class="solution">
+          <div class="sol-label">✦ Solution</div>
+          <pre><span class="kw">WITH</span> daily_revenue <span class="kw">AS</span> (
+    <span class="kw">SELECT</span>
+        <span class="fn">CAST</span>(event_date <span class="kw">AS DATE</span>)  <span class="kw">AS</span> sale_date,
+        <span class="fn">ROUND</span>(<span class="fn">SUM</span>(amount), <span class="num">2</span>)      <span class="kw">AS</span> daily_rev
+    <span class="kw">FROM</span> user_events
+    <span class="kw">WHERE</span> event_type = <span class="str">'purchase'</span>
+    <span class="kw">GROUP BY</span> <span class="fn">CAST</span>(event_date <span class="kw">AS DATE</span>)
+)
+<span class="kw">SELECT</span>
+    sale_date,
+    daily_rev,
+    <span class="fn">ROUND</span>(<span class="fn">AVG</span>(daily_rev) <span class="kw">OVER</span> (
+        <span class="kw">ORDER BY</span> sale_date
+        <span class="kw">ROWS BETWEEN</span> <span class="num">6</span> <span class="kw">PRECEDING AND CURRENT ROW</span>
+    ), <span class="num">2</span>) <span class="kw">AS</span> rolling_7day_avg
+<span class="kw">FROM</span> daily_revenue
+<span class="kw">ORDER BY</span> sale_date;</pre>
+          <div class="explanation">💡 <strong>ROWS BETWEEN 6 PRECEDING AND CURRENT ROW</strong> defines a sliding window of 7 rows (today + 6 prior days). Window functions don't collapse rows like GROUP BY does.</div>
+        </div>
+      </div>
+
+      <div class="qcard">
+        <div class="qcard-header" onclick="toggle(this)">
+          <span class="q-num">Q10</span>
+          <div>
+            <div class="q-text">For each product, calculate the view-to-purchase conversion rate.</div>
+            <div class="q-tags"><span class="tag tag-sql">CASE WHEN</span><span class="tag tag-funnel">Conversion</span><span class="tag tag-analytics">Products</span></div>
+          </div>
+          <button class="toggle-btn">Show Answer</button>
+        </div>
+        <div class="solution">
+          <div class="sol-label">✦ Solution</div>
+          <pre><span class="kw">SELECT</span>
+    product_id,
+    <span class="fn">COUNT</span>(<span class="kw">DISTINCT CASE WHEN</span> event_type = <span class="str">'page_view'</span>  <span class="kw">THEN</span> user_id <span class="kw">END</span>) <span class="kw">AS</span> viewers,
+    <span class="fn">COUNT</span>(<span class="kw">DISTINCT CASE WHEN</span> event_type = <span class="str">'purchase'</span>   <span class="kw">THEN</span> user_id <span class="kw">END</span>) <span class="kw">AS</span> buyers,
+    <span class="fn">ROUND</span>(
+        <span class="num">100.0</span> *
+        <span class="fn">COUNT</span>(<span class="kw">DISTINCT CASE WHEN</span> event_type = <span class="str">'purchase'</span> <span class="kw">THEN</span> user_id <span class="kw">END</span>)
+        / <span class="fn">NULLIF</span>(<span class="fn">COUNT</span>(<span class="kw">DISTINCT CASE WHEN</span> event_type = <span class="str">'page_view'</span> <span class="kw">THEN</span> user_id <span class="kw">END</span>), <span class="num">0</span>)
+    , <span class="num">2</span>)                                                                   <span class="kw">AS</span> conversion_pct
+<span class="kw">FROM</span> user_events
+<span class="kw">GROUP BY</span> product_id
+<span class="kw">ORDER BY</span> conversion_pct <span class="kw">DESC</span>;</pre>
+          <div class="explanation">💡 <strong>NULLIF(expr, 0)</strong> prevents divide-by-zero errors by turning 0 into NULL (division by NULL returns NULL gracefully instead of crashing).</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- HARD -->
+  <div class="level-group">
+    <div class="level-header">
+      <div class="level-dot" style="background:var(--hard)"></div>
+      <div class="level-name" style="color:var(--hard)">Hard</div>
+      <div class="level-count">5 questions</div>
+    </div>
+    <div class="questions">
+
+      <div class="qcard">
+        <div class="qcard-header" onclick="toggle(this)">
+          <span class="q-num">Q11</span>
+          <div>
+            <div class="q-text">Rank users by total revenue spent using DENSE_RANK(). Show top 10 customers.</div>
+            <div class="q-tags"><span class="tag tag-sql">DENSE_RANK</span><span class="tag tag-sql">Window Function</span><span class="tag tag-sql">CTE</span></div>
+          </div>
+          <button class="toggle-btn">Show Answer</button>
+        </div>
+        <div class="solution">
+          <div class="sol-label">✦ Solution</div>
+          <pre><span class="kw">WITH</span> user_spend <span class="kw">AS</span> (
+    <span class="kw">SELECT</span>
+        user_id,
+        <span class="fn">COUNT</span>(*)            <span class="kw">AS</span> total_purchases,
+        <span class="fn">ROUND</span>(<span class="fn">SUM</span>(amount), <span class="num">2</span>) <span class="kw">AS</span> total_spent
+    <span class="kw">FROM</span> user_events
+    <span class="kw">WHERE</span> event_type = <span class="str">'purchase'</span>
+    <span class="kw">GROUP BY</span> user_id
+),
+ranked <span class="kw">AS</span> (
+    <span class="kw">SELECT</span>
+        user_id,
+        total_purchases,
+        total_spent,
+        <span class="fn">DENSE_RANK</span>() <span class="kw">OVER</span> (<span class="kw">ORDER BY</span> total_spent <span class="kw">DESC</span>) <span class="kw">AS</span> spend_rank
+    <span class="kw">FROM</span> user_spend
+)
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> ranked <span class="kw">WHERE</span> spend_rank &lt;= <span class="num">10</span>;</pre>
+          <div class="explanation">💡 <strong>DENSE_RANK</strong> vs <strong>RANK</strong>: if two users tie at rank 1, DENSE_RANK gives the next user rank 2 (no gaps), while RANK skips to rank 3. Use DENSE_RANK for customer tiers.</div>
+        </div>
+      </div>
+
+      <div class="qcard">
+        <div class="qcard-header" onclick="toggle(this)">
+          <span class="q-num">Q12</span>
+          <div>
+            <div class="q-text">Calculate session-level metrics: for each user, find their average time between page_view and purchase (in minutes) for completed journeys.</div>
+            <div class="q-tags"><span class="tag tag-sql">DATEDIFF</span><span class="tag tag-sql">Self JOIN</span><span class="tag tag-analytics">Sessions</span></div>
+          </div>
+          <button class="toggle-btn">Show Answer</button>
+        </div>
+        <div class="solution">
+          <div class="sol-label">✦ Solution</div>
+          <pre><span class="kw">WITH</span> journeys <span class="kw">AS</span> (
+    <span class="kw">SELECT</span>
+        pv.user_id,
+        pv.product_id,
+        pv.event_date                           <span class="kw">AS</span> view_time,
+        p.event_date                            <span class="kw">AS</span> purchase_time,
+        <span class="fn">DATEDIFF</span>(<span class="kw">MINUTE</span>, pv.event_date, p.event_date) <span class="kw">AS</span> minutes_to_purchase
+    <span class="kw">FROM</span> user_events pv
+    <span class="kw">INNER JOIN</span> user_events p
+        <span class="kw">ON</span>  pv.user_id    = p.user_id
+        <span class="kw">AND</span> pv.product_id = p.product_id
+        <span class="kw">AND</span> pv.event_type = <span class="str">'page_view'</span>
+        <span class="kw">AND</span>  p.event_type = <span class="str">'purchase'</span>
+        <span class="kw">AND</span>  p.event_date > pv.event_date
+)
+<span class="kw">SELECT</span>
+    user_id,
+    <span class="fn">COUNT</span>(*)                            <span class="kw">AS</span> purchases,
+    <span class="fn">ROUND</span>(<span class="fn">AVG</span>(<span class="num">1.0</span> * minutes_to_purchase), <span class="num">1</span>) <span class="kw">AS</span> avg_minutes_to_buy
+<span class="kw">FROM</span> journeys
+<span class="kw">GROUP BY</span> user_id
+<span class="kw">ORDER BY</span> avg_minutes_to_buy;</pre>
+          <div class="explanation">💡 A <strong>self-join</strong> joins a table to itself using aliases (pv = page view, p = purchase). The condition p.event_date > pv.event_date ensures we only match events in the correct chronological order.</div>
+        </div>
+      </div>
+
+      <div class="qcard">
+        <div class="qcard-header" onclick="toggle(this)">
+          <span class="q-num">Q13</span>
+          <div>
+            <div class="q-text">Identify "high-value" users: those whose total spend is above the average spend of all buyers. Show their spend and percentile.</div>
+            <div class="q-tags"><span class="tag tag-sql">PERCENT_RANK</span><span class="tag tag-sql">CTE</span><span class="tag tag-analytics">Segmentation</span></div>
+          </div>
+          <button class="toggle-btn">Show Answer</button>
+        </div>
+        <div class="solution">
+          <div class="sol-label">✦ Solution</div>
+          <pre><span class="kw">WITH</span> buyer_spend <span class="kw">AS</span> (
+    <span class="kw">SELECT</span>
+        user_id,
+        <span class="fn">ROUND</span>(<span class="fn">SUM</span>(amount), <span class="num">2</span>) <span class="kw">AS</span> total_spent
+    <span class="kw">FROM</span> user_events
+    <span class="kw">WHERE</span> event_type = <span class="str">'purchase'</span>
+    <span class="kw">GROUP BY</span> user_id
+),
+percentiles <span class="kw">AS</span> (
+    <span class="kw">SELECT</span>
+        user_id,
+        total_spent,
+        <span class="fn">ROUND</span>(<span class="fn">PERCENT_RANK</span>() <span class="kw">OVER</span> (<span class="kw">ORDER BY</span> total_spent) * <span class="num">100</span>, <span class="num">1</span>) <span class="kw">AS</span> percentile
+    <span class="kw">FROM</span> buyer_spend
+)
+<span class="kw">SELECT</span> *
+<span class="kw">FROM</span> percentiles
+<span class="kw">WHERE</span> total_spent > (<span class="kw">SELECT</span> <span class="fn">AVG</span>(total_spent) <span class="kw">FROM</span> buyer_spend)
+<span class="kw">ORDER BY</span> total_spent <span class="kw">DESC</span>;</pre>
+          <div class="explanation">💡 <strong>PERCENT_RANK()</strong> returns a value between 0 and 1 indicating where a row falls in its partition. A percentile of 90 means "this user spends more than 90% of all buyers."</div>
+        </div>
+      </div>
+
+      <div class="qcard">
+        <div class="qcard-header" onclick="toggle(this)">
+          <span class="q-num">Q14</span>
+          <div>
+            <div class="q-text">Find the most popular product per traffic source (the product with the most page views for each source).</div>
+            <div class="q-tags"><span class="tag tag-sql">ROW_NUMBER</span><span class="tag tag-sql">Partitioning</span><span class="tag tag-analytics">Products</span></div>
+          </div>
+          <button class="toggle-btn">Show Answer</button>
+        </div>
+        <div class="solution">
+          <div class="sol-label">✦ Solution</div>
+          <pre><span class="kw">WITH</span> source_product_views <span class="kw">AS</span> (
+    <span class="kw">SELECT</span>
+        traffic_source,
+        product_id,
+        <span class="fn">COUNT</span>(*) <span class="kw">AS</span> view_count
+    <span class="kw">FROM</span> user_events
+    <span class="kw">WHERE</span> event_type = <span class="str">'page_view'</span>
+    <span class="kw">GROUP BY</span> traffic_source, product_id
+),
+ranked <span class="kw">AS</span> (
+    <span class="kw">SELECT</span>
+        traffic_source,
+        product_id,
+        view_count,
+        <span class="fn">ROW_NUMBER</span>() <span class="kw">OVER</span> (
+            <span class="kw">PARTITION BY</span> traffic_source
+            <span class="kw">ORDER BY</span> view_count <span class="kw">DESC</span>
+        ) <span class="kw">AS</span> rn
+    <span class="kw">FROM</span> source_product_views
+)
+<span class="kw">SELECT</span> traffic_source, product_id, view_count
+<span class="kw">FROM</span> ranked
+<span class="kw">WHERE</span> rn = <span class="num">1</span>
+<span class="kw">ORDER BY</span> traffic_source;</pre>
+          <div class="explanation">💡 <strong>PARTITION BY</strong> is the key — it resets the row number for each traffic_source group. Filtering WHERE rn = 1 gives only the top-ranked product per group (like a per-group TOP 1).</div>
+        </div>
+      </div>
+
+      <div class="qcard">
+        <div class="qcard-header" onclick="toggle(this)">
+          <span class="q-num">Q15</span>
+          <div>
+            <div class="q-text">Cohort analysis: for users who first visited in each week, what % eventually made a purchase?</div>
+            <div class="q-tags"><span class="tag tag-sql">CTE</span><span class="tag tag-sql">DATEPART</span><span class="tag tag-analytics">Cohort</span></div>
+          </div>
+          <button class="toggle-btn">Show Answer</button>
+        </div>
+        <div class="solution">
+          <div class="sol-label">✦ Solution</div>
+          <pre><span class="kw">WITH</span> first_visit <span class="kw">AS</span> (
+    <span class="cmt">-- Find each user's first visit week</span>
+    <span class="kw">SELECT</span>
+        user_id,
+        <span class="fn">DATEPART</span>(<span class="kw">YEAR</span>,  <span class="fn">MIN</span>(event_date))  <span class="kw">AS</span> cohort_year,
+        <span class="fn">DATEPART</span>(<span class="kw">WEEK</span>,  <span class="fn">MIN</span>(event_date))  <span class="kw">AS</span> cohort_week
+    <span class="kw">FROM</span> user_events
+    <span class="kw">WHERE</span> event_type = <span class="str">'page_view'</span>
+    <span class="kw">GROUP BY</span> user_id
+),
+buyers <span class="kw">AS</span> (
+    <span class="kw">SELECT DISTINCT</span> user_id <span class="kw">FROM</span> user_events <span class="kw">WHERE</span> event_type = <span class="str">'purchase'</span>
+)
+<span class="kw">SELECT</span>
+    f.cohort_year,
+    f.cohort_week,
+    <span class="fn">COUNT</span>(f.user_id)                         <span class="kw">AS</span> cohort_size,
+    <span class="fn">COUNT</span>(b.user_id)                         <span class="kw">AS</span> converted,
+    <span class="fn">ROUND</span>(<span class="num">100.0</span> * <span class="fn">COUNT</span>(b.user_id) / <span class="fn">COUNT</span>(f.user_id), <span class="num">2</span>) <span class="kw">AS</span> conversion_pct
+<span class="kw">FROM</span> first_visit f
+<span class="kw">LEFT JOIN</span> buyers b <span class="kw">ON</span> f.user_id = b.user_id
+<span class="kw">GROUP BY</span> f.cohort_year, f.cohort_week
+<span class="kw">ORDER BY</span> f.cohort_year, f.cohort_week;</pre>
+          <div class="explanation">💡 <strong>Cohort analysis</strong> groups users by when they first arrived, then tracks behavior over time. LEFT JOIN to buyers ensures users with no purchase still appear (counted as 0 converted). This pattern is used extensively in product analytics.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+function toggle(header) {
+  const solution = header.parentElement.querySelector('.solution');
+  const btn = header.querySelector('.toggle-btn');
+  const visible = solution.classList.toggle('visible');
+  btn.textContent = visible ? 'Hide Answer' : 'Show Answer';
+}
+</script>
+</body>
+</html>
